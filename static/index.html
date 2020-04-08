@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+  </head>
+  <body>
+    <h2>Hello!</h2>
+    <video muted id="localStream" autoplay></video>
+    <script type="module">
+      import {MessagingClient} from '/js/MessagingClient.js';
+      import {P2PVideoConnection} from '/js/P2PVideoConnection.js';
+
+      window.localVideoStream = null;
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(function (stream) {
+          window.localVideoStream = stream
+          document.querySelector("#localStream").srcObject = stream;
+        })
+
+      let videoConnections = {}
+
+      let messagingClient = new MessagingClient('/messaging')
+      messagingClient.register().then(function(){
+        console.log(messagingClient.id)
+        messagingClient.brodcast({"type": "request-video"})
+      })
+      messagingClient.on('messages', messages => {
+        for(let i=0; i<messages.length; i++){
+          let message = messages[i]
+          console.log(message);
+          let data = message.data
+          if(data.type == "request-video"){
+            createVideoConnection(message.from).offer();
+          }
+          if(data.type == "rtc-negotiation-msg"){
+            if(!videoConnections[message.from]) createVideoConnection(message.from)
+            console.log(message)
+            videoConnections[message.from].handleNegotationMessage(data["negotiation-msg"])
+          }
+        }
+      })
+      function createVideoConnection(to){
+        videoConnections[to] = new P2PVideoConnection(window.localVideoStream)
+        videoConnections[to].on('rtc-negotiation-msg-prepared', message => {
+          messagingClient.send(to, {"type":"rtc-negotiation-msg", "negotiation-msg":message})
+        })
+        videoConnections[to].on("remoteVideo", e => {
+          let video = document.createElement("video");
+          document.body.appendChild(video)
+          video.srcObject = e.stream;
+          video.play()
+        })
+        return videoConnections[to];
+      }
+    </script>
+  </body>
+</html>
