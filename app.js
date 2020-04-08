@@ -9,9 +9,8 @@ const app = express();
 app.use(express.static(path.join(__dirname, 'static')));
 
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use('/messaging', require('./routes/messaging'))
+//app.use('/messaging', require('./routes/messaging'))
 
 app.listen(3000);
 
