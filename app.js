@@ -10,7 +10,7 @@ app.use(express.static(path.join(__dirname, 'static')));
 
 app.use(bodyParser.json());
 
-#app.use('/messaging', require('./routes/messaging'))
+app.use('/messaging', require('./routes/messaging'))
 
 app.listen(process.env.PORT || 3000);
 
