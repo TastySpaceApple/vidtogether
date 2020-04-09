@@ -3,56 +3,100 @@
   <head>
     <meta charset="utf-8">
     <title></title>
+    <style>
+      body{
+          background: url('grid.png');
+      }
+      .video-block{
+        position: absolute;
+        left:20px;
+        top: 20px;
+        width:640px;
+        height:480px;
+        cursor: pointer;
+        border:2px solid #ffffff;
+        box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+      }
+      .video-block video{
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        cursor: move;
+      }
+      .video-block .corner{
+        position: absolute;
+        z-index: 1;
+        width:20px;
+        height: 20px;
+        border-radius: 50%;
+        border:2px solid #ffffff;
+        box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+        background:#444;
+      }
+      .video-block .corner:hover{
+        transform: scale(1.2);
+      }
+      .video-block .corner--lt{ left:-10px; top:-10px }
+      .video-block .corner--rt{ right:-10px; top:-10px }
+      .video-block .corner--rb{ right:-10px; bottom:-10px }
+      .video-block .corner--lb{ left:-10px; bottom:-10px }
+    </style>
   </head>
   <body>
-    <h2>Hello!</h2>
-    <video muted id="localStream" autoplay></video>
+    <!-- <video muted id="localStream" autoplay></video> -->
     <script type="module">
       import {MessagingClient} from '/js/MessagingClient.js';
-      import {P2PVideoConnection} from '/js/P2PVideoConnection.js';
+      import {VideoBlock} from '/js/VideoBlock.js';
+
+
+      let videoBlocks = {}
 
       window.localVideoStream = null;
       navigator.mediaDevices.getUserMedia({ video: true, audio:true })
         .then(function (stream) {
           window.localVideoStream = stream
-          document.querySelector("#localStream").srcObject = stream;
+          //document.querySelector("#localStream").srcObject = stream;
+
+          messagingClient.register().then(function(){
+            messagingClient.broadcast({"type": "request-video"})
+          })
+          videoBlocks["me"] = new VideoBlock({muted: true});
+          videoBlocks["me"].setStream(window.localVideoStream);
+
         })
 
-      let videoConnections = {}
 
       let messagingClient = new MessagingClient('/messaging')
-      messagingClient.register().then(function(){
-        console.log(messagingClient.id)
-        messagingClient.brodcast({"type": "request-video"})
-      })
       messagingClient.on('messages', messages => {
         for(let i=0; i<messages.length; i++){
           let message = messages[i]
           console.log(message);
           let data = message.data
+          if(data.type == "unregister"){
+            if(videoBlocks[message.from])
+              videoBlocks[message.from].remove();
+          }
           if(data.type == "request-video"){
-            createVideoConnection(message.from).offer();
+            videoBlocks[message.from] = new VideoBlock()
+            videoBlocks[message.from].createP2PConnection(message.from, messagingClient)
+            videoBlocks[message.from].startP2PNegotiation()
           }
           if(data.type == "rtc-negotiation-msg"){
-            if(!videoConnections[message.from]) createVideoConnection(message.from)
-            console.log(message)
-            videoConnections[message.from].handleNegotationMessage(data["negotiation-msg"])
+            if(!videoBlocks[message.from]){
+                videoBlocks[message.from] = new VideoBlock()
+                videoBlocks[message.from].createP2PConnection(message.from, messagingClient)
+            }
+            videoBlocks[message.from].handleP2PNegotationMessage(data["negotiation-msg"])
           }
         }
       })
-      function createVideoConnection(to){
-        videoConnections[to] = new P2PVideoConnection(window.localVideoStream)
-        videoConnections[to].on('rtc-negotiation-msg-prepared', message => {
-          messagingClient.send(to, {"type":"rtc-negotiation-msg", "negotiation-msg":message})
-        })
-        videoConnections[to].on("remoteVideo", e => {
-          let video = document.createElement("video");
-          document.body.appendChild(video)
-          video.srcObject = e.stream;
-          video.play()
-        })
-        return videoConnections[to];
-      }
+
+      window.addEventListener('beforeunload', function (e) {
+          messagingClient.unregister();
+          // Chrome requires returnValue to be set
+          e.returnValue = '';
+      });
+
     </script>
   </body>
 </html>

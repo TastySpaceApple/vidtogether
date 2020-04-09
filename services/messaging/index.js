@@ -13,14 +13,18 @@ module.exports = {
     return true;
   },
   popMessages: function(to){
-    msgs = fakedb["clients"][to].messages
+    if(!fakedb["clients"][to]) return [];
+    msgs = fakedb["clients"][to].messages;
     fakedb["clients"][to].messages = []
     return msgs
   },
-  brodcast: function(from, data){
+  broadcast: function(from, data){
     for(clientId in fakedb["clients"]){
       if(clientId != from)
         this.sendMessage(from, clientId, data);
     }
+  },
+  unregister: function(id){
+    delete fakedb["clients"][id]
   }
 }

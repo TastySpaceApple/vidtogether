@@ -17,9 +17,16 @@ router.post('/pop', (req,res) => {
   res.json(msgs)
 })
 
-router.post('/brodcast', (req,res) => {
-  messaging.brodcast(req.body.from, req.body.data)
+router.post('/broadcast', (req,res) => {
+  messaging.broadcast(req.body.from, req.body.data)
   res.json({ok:true})
 })
+
+router.post('/unregister', (req,res) => {
+  messaging.unregister(req.body.id)
+  messaging.broadcast(req.body.id, {"type":"unregister"})
+  res.json({ok:true})
+})
+
 
 module.exports = router;

@@ -28,16 +28,37 @@ export class P2PVideoConnection extends EventDispatcher{
   createConnection(){
     let RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
     this.rtcConnection = new RTCPeerConnection(config.rtc);
-    this.rtcConnection.addStream(this.localVideoStream);
-    this.rtcConnection.onaddstream = (e) => {
+    for (const track of this.localVideoStream.getTracks()) {
+      this.rtcConnection.addTrack(track);
+    }
+    this.inboundStream = null;
+    this.rtcConnection.addEventListener('track', ev => {
+      if (ev.streams && ev.streams[0]) {
+        this.inboundStream = ev.streams[0];
+        this.trigger('remoteVideo', {stream:this.inboundStream});
+      } else {
+        if(!this.inboundStream){
+          this.inboundStream = new MediaStream();
+          this.trigger('remoteVideo', {stream:this.inboundStream});
+        }
+        this.inboundStream.addTrack(ev.track);
+      }
+
+    });
+    //this.rtcConnection.addStream(this.localVideoStream);
+    /*this.rtcConnection.onaddstream = (e) => {
       this.trigger('remoteVideo', {stream:e.stream});
       console.log('stream received');
-    }
-    this.rtcConnection.onicecandidate = (e) => {
+    }*/
+    this.rtcConnection.addEventListener('icecandidate', (e) => {
       if (!this.rtcConnection || !e || !e.candidate) return;
         let candidate = e.candidate;
         this.trigger("rtc-negotiation-msg-prepared", {"iceCandidate": candidate});
-    }
+    });
+    this.rtcConnection.addEventListener('connectionstatechange', e => {
+      if(this.rtcConnection.connectionState == "disconnected")
+        this.trigger("disconnected");
+    });
   }
   offer(){
     this.createConnection();
